@@ -7,19 +7,6 @@ import { TokenManager } from '../../../lib/TokenManager';
 
 const Emitter = require('tiny-emitter');
 
-function createAuth() {
-  return new OktaAuth({
-    pkce: false,
-    issuer: 'https://auth-js-test.okta.com',
-    clientId: 'NPSfOkH5eZrTy8PMDlvx',
-    redirectUri: 'https://example.com/redirect',
-    tokenManager: {
-      autoRenew: false,
-      autoRemove: false,
-    }
-  });
-}
-
 describe('TokenManager renew', () => {
   let testContext;
 
@@ -86,7 +73,7 @@ describe('TokenManager renew', () => {
     expect(testContext.instance.emitRenewed).toHaveBeenCalledWith('foo', testContext.freshToken, testContext.oldToken);
   });
 
-  it.only('multiple token renew operations should produce consistent results', async () => {
+  it('multiple token renew operations should produce consistent results', async () => {
     const authClient = new OktaAuth({
       pkce: false,
       issuer: 'https://auth-js-test.okta.com',
@@ -124,7 +111,7 @@ describe('TokenManager renew', () => {
 
     await authClient.tokenManager.renew('idToken'),
     await authClient.tokenManager.renew('accessToken')
-    
+
     expect(handler).toHaveBeenCalledTimes(2);
     expect(handler).toHaveBeenNthCalledWith(1, {
       accessToken: freshTokens.accessToken,
