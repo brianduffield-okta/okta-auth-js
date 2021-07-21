@@ -1,8 +1,24 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// import { OktaAuth } from '@okta/okta-auth-js';
+import tokens from '@okta/test.support/tokens';
+import { OktaAuth } from '../../../lib';
 import { AuthApiError, AuthSdkError, OAuthError } from '../../../lib/errors';
 import { TokenManager } from '../../../lib/TokenManager';
 
 const Emitter = require('tiny-emitter');
+
+function createAuth() {
+  return new OktaAuth({
+    pkce: false,
+    issuer: 'https://auth-js-test.okta.com',
+    clientId: 'NPSfOkH5eZrTy8PMDlvx',
+    redirectUri: 'https://example.com/redirect',
+    tokenManager: {
+      autoRenew: false,
+      autoRemove: false,
+    }
+  });
+}
 
 describe('TokenManager renew', () => {
   let testContext;
@@ -68,6 +84,58 @@ describe('TokenManager renew', () => {
   it('emits a renewed event', async () => {
     await testContext.instance.renew('foo');
     expect(testContext.instance.emitRenewed).toHaveBeenCalledWith('foo', testContext.freshToken, testContext.oldToken);
+  });
+
+  it.only('multiple token renew operations should produce consistent results', async () => {
+    const authClient = new OktaAuth({
+      pkce: false,
+      issuer: 'https://auth-js-test.okta.com',
+      clientId: 'NPSfOkH5eZrTy8PMDlvx',
+      redirectUri: 'https://example.com/redirect',
+      tokenManager: {
+        autoRenew: false,
+        storage: 'memory' // use memory as mock storage
+      }
+    });
+    const expiredTokens = {
+      idToken: { 
+        ...tokens.standardIdTokenParsed, 
+        expired: true
+      },
+      accessToken: { 
+        ...tokens.standardAccessTokenParsed, 
+        expired: true
+      }
+    }
+    const freshTokens = {
+      idToken: { ...tokens.standardIdTokenParsed },
+      accessToken: { ...tokens.standardAccessTokenParsed }
+    };
+    // preset expired tokens in storage
+    const tokenStorage = authClient.storageManager.getTokenStorage();
+    tokenStorage.setStorage(expiredTokens);
+    jest.spyOn(authClient.token, 'renew').mockImplementation((token) => {
+      const type = authClient.tokenManager.getTokenType(token);
+      return Promise.resolve(freshTokens[type]);
+    });
+    jest.spyOn(authClient.tokenManager, 'hasExpired').mockImplementation(token => !!token.expired);
+    const handler = jest.fn();
+    authClient.authStateManager.subscribe(handler);
+
+    await authClient.tokenManager.renew('idToken'),
+    await authClient.tokenManager.renew('accessToken')
+    
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(handler).toHaveBeenNthCalledWith(1, {
+      accessToken: freshTokens.accessToken,
+      idToken: freshTokens.idToken,
+      isAuthenticated: true
+    });
+    expect(handler).toHaveBeenNthCalledWith(2, {
+      accessToken: freshTokens.accessToken,
+      idToken: freshTokens.idToken,
+      isAuthenticated: true
+    });
   });
 
   describe('error handling', () => {

@@ -268,6 +268,19 @@ export class TokenManager implements TokenManagerInterface {
   async getTokens(): Promise<Tokens> {
     return this.getTokensSync();
   }
+
+  getTokenType(token: Token): TokenType {
+    if (isAccessToken(token)) {
+      return 'accessToken';
+    }
+    if (isIDToken(token)) {
+      return 'idToken';
+    }
+    if(isRefreshToken(token)) {
+      return 'refreshToken';
+    }
+    throw new AuthSdkError('Unknown token type');
+  }
   
   getStorageKeyByType(type: TokenType): string {
     const tokenStorage = this.storage.getStorage();
